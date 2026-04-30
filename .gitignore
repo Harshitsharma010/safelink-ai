@@ -1,0 +1,23 @@
+# Dependencies
+node_modules/
+.npm
+
+# Environment variables (never commit keys!)
+.env
+backend/.env
+
+# Build output
+frontend/build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/
+*.swp
