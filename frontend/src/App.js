@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import "./App.css";
 
-const API = process.env.REACT_APP_API_URL || "";
+const API = "https://safelink-ai-s4fy.onrender.com";
 
 function ScoreRing({ score, color }) {
   const r = 54;
@@ -101,13 +101,33 @@ export default function App() {
     setResult(null);
 
     try {
-      const res = await fetch(`${API}/api/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ input: input.trim(), apiKey: apiKey || undefined })
-      });
-
-      const data = await res.json();
+      // Retry up to 3x — handles Render free tier cold starts
+      let res, text;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          res = await fetch(`${API}/api/analyze`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ input: input.trim(), apiKey: apiKey || undefined })
+          });
+          text = await res.text();
+          if (text && !text.startsWith("<")) break;
+          if (attempt < 3) {
+            setError(`Server waking up… retrying (${attempt}/3)`);
+            await new Promise(r => setTimeout(r, 5000));
+          }
+        } catch (fetchErr) {
+          if (attempt === 3) throw fetchErr;
+          await new Promise(r => setTimeout(r, 3000));
+        }
+      }
+      if (!text || text.startsWith("<")) {
+        throw new Error("Server is starting — please wait 30 seconds and try again");
+      }
+      let data;
+      try { data = JSON.parse(text); } catch {
+        throw new Error("Bad response from server. Try again in a moment.");
+      }
       if (!res.ok) throw new Error(data.error || "Analysis failed");
 
       setResult(data);
@@ -186,11 +206,8 @@ export default function App() {
       {/* Main Content */}
       <main className="main">
         <div className="hero">
-          <h1>Detect risky links<br /><span className="hero-accent">in seconds</span></h1>
-          <p className="hero-sub">Analyze URLs and messages using heuristic scoring and real-time detection.</p>
-          <p style={{ fontSize: "13px", opacity: 0.6, marginTop: "8px" }}>
-            Built as an end-to-end phishing detection system (frontend + backend)
-          </p>
+          <h1>Detect phishing<br /><span className="hero-accent">before it's too late</span></h1>
+          <p className="hero-sub">Paste any URL or suspicious message. Our AI analyzes it in seconds.</p>
         </div>
 
         {/* Input Card */}
@@ -202,7 +219,7 @@ export default function App() {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={handleKey}
-            placeholder="Paste a URL (e.g., https://example.com) or a suspicious message..."
+            placeholder="https://paypal-secure-login.xyz/verify?account=...&#10;or paste a suspicious email/SMS message"
             rows={4}
             maxLength={2000}
           />
@@ -216,7 +233,7 @@ export default function App() {
               {loading ? (
                 <><span className="spinner" />Scanning…</>
               ) : (
-                <><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L1 4v4c0 3 2.5 5.7 6 6.5C10.5 13.7 13 11 13 8V4L7 1z" stroke="currentColor" strokeWidth="1.2" fill="none" /><path d="M4.5 7l2 2 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>Analyze Risk</>
+                <><svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M7 1L1 4v4c0 3 2.5 5.7 6 6.5C10.5 13.7 13 11 13 8V4L7 1z" stroke="currentColor" strokeWidth="1.2" fill="none" /><path d="M4.5 7l2 2 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>Analyze</>
               )}
             </button>
           </div>
@@ -224,7 +241,7 @@ export default function App() {
           {/* Optional API Key */}
           <div className="api-key-section">
             <button className="text-btn api-toggle" onClick={() => setShowApiKey(!showApiKey)}>
-              {showApiKey ? "▼" : "▶"} Enhance explanations with AI (optional — core detection built locally)
+              {showApiKey ? "▼" : "▶"} Claude API key (optional — for AI explanations)
             </button>
             {showApiKey && (
               <input
@@ -252,20 +269,13 @@ export default function App() {
         {/* Result */}
         {result && !loading && (
           <div className={`result-card result-card--${result.color}`}>
-            <p style={{ marginBottom: "12px", fontSize: "15px", opacity: 0.9 }}>
-              {result.label === "Dangerous"
-                ? "This input shows strong indicators of phishing activity."
-                : result.label === "Suspicious"
-                ? "This input contains some suspicious patterns."
-                : "This input appears safe based on current checks."}
-            </p>
             {/* Score */}
             <div className="result-header">
               <ScoreRing score={result.score} color={result.color} />
               <div className="result-meta">
                 <div className={`result-label result-label--${result.color}`}>
                   <span className="label-icon">{labelEmoji[result.label]}</span>
-                  {result.label} ({result.score > 75 ? "High Confidence" : result.score > 40 ? "Medium Confidence" : "Low Confidence"})
+                  {result.label}
                 </div>
                 <div className="result-input-display">
                   <span className="result-input-text">{result.input.substring(0, 80)}{result.input.length > 80 ? "…" : ""}</span>
@@ -279,7 +289,7 @@ export default function App() {
               <div className="ai-explanation">
                 <div className="ai-badge">
                   <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><circle cx="6" cy="6" r="5" stroke="currentColor" strokeWidth="1" /><path d="M4 6.5c.3.8 1 1.5 2 1.5s1.7-.7 2-1.5M4.5 4.5h.01M7.5 4.5h.01" stroke="currentColor" strokeWidth="1" strokeLinecap="round" /></svg>
-                  AI Explanation
+                  Claude AI
                 </div>
                 <p className="ai-text">{result.aiExplanation}</p>
               </div>
@@ -330,7 +340,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-         SafeLink AI · Built by Harsh · Real-time phishing detection with explainable scoring
+        SafeLink AI · Rule-based + AI phishing detection · Not a substitute for professional security tools
       </footer>
     </div>
   );
