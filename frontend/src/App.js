@@ -238,21 +238,6 @@ export default function App() {
             </button>
           </div>
 
-          {/* Optional API Key */}
-          <div className="api-key-section">
-            <button className="text-btn api-toggle" onClick={() => setShowApiKey(!showApiKey)}>
-              {showApiKey ? "▼" : "▶"} Claude API key (optional — for AI explanations)
-            </button>
-            {showApiKey && (
-              <input
-                type="password"
-                className="api-key-input"
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder="sk-ant-..."
-              />
-            )}
-          </div>
         </div>
 
         {/* Error */}
@@ -340,7 +325,7 @@ export default function App() {
       </main>
 
       <footer className="footer">
-        SafeLink AI · Rule-based + AI phishing detection · Not a substitute for professional security tools
+        SafeLink AI · Built by Harshit Sharma · Real-time phishing detection with explainable scoring
       </footer>
     </div>
   );
